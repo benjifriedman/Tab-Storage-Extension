@@ -26,7 +26,7 @@ chrome.runtime.onStartup.addListener(() => {
 
 // Listen for messages from popup or content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-	console.log('Message received in background:', message.action);
+	console.log('Background received message:', message);
 
 	try {
 		if (message.action === 'viewSavedTabs') {
@@ -38,12 +38,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 			});
 			return true; // Required for async response
 		} else if (message.action === 'saveCurrentTab') {
-			console.log('Saving current tab:', message.tab);
+			console.log('Saving current tab');
 			if (message.tab) {
-				saveTab(message.tab, message.closeAfterSave);
+				saveTab(message.tab, message.closeAfterSave || false);
 				sendResponse({ success: true });
 
-				// Show tablist after saving if requested
 				if (message.showTabList) {
 					showTabList();
 				}
@@ -61,38 +60,62 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 					const nonExtensionTabs = tabs.filter(tab => !tab.url.startsWith('chrome-extension://'));
 					console.log('Filtered to', nonExtensionTabs.length, 'non-extension tabs');
 
-					// Get the current active tab ID to avoid closing it immediately (causes UI issues)
-					let activeTabId = null;
-					nonExtensionTabs.forEach(tab => {
-						if (tab.active) activeTabId = tab.id;
-					});
+					// First, get existing tabs from storage
+					chrome.storage.local.get(['tabData'], function (result) {
+						const existingTabData = result.tabData || [];
+						console.log('Existing tabs in storage:', existingTabData.length);
 
-					// Tab IDs to close
-					const tabIdsToClose = message.closeAfterSave ? nonExtensionTabs.filter(t => t.id !== activeTabId).map(t => t.id) : [];
+						// Create new tab entries for all tabs at once
+						const newTabEntries = nonExtensionTabs.map(tab => ({
+							id: Date.now() + Math.floor(Math.random() * 1000) + Math.random(), // Ensure unique ID
+							title: tab.title || 'Untitled Tab',
+							url: tab.url,
+							favicon: tab.favIconUrl,
+							date: new Date().toISOString()
+						}));
 
-					// Save each tab
-					nonExtensionTabs.forEach((tab, index) => {
-						// Don't close tabs while saving except the last active tab (if requested)
-						const shouldCloseThisTab = message.closeAfterSave && (tab.id !== activeTabId || index === nonExtensionTabs.length - 1);
+						console.log('Created new tab entries:', newTabEntries.length);
 
-						saveTab(tab, shouldCloseThisTab);
-					});
+						// Combine existing and new tabs
+						const updatedTabData = [...existingTabData, ...newTabEntries];
 
-					// Close non-active tabs in bulk for better performance
-					if (message.closeAfterSave && tabIdsToClose.length > 0) {
-						chrome.tabs.remove(tabIdsToClose, function () {
-							if (chrome.runtime.lastError) {
-								console.error('Error closing tabs:', chrome.runtime.lastError);
+						// Save all tabs in a single operation
+						chrome.storage.local.set({ tabData: updatedTabData }, function () {
+							console.log('All tabs saved successfully. Total tabs in storage:', updatedTabData.length);
+
+							// Now that all tabs are saved, close them if requested
+							if (message.closeAfterSave) {
+								console.log('Closing tabs after save');
+								const tabIds = nonExtensionTabs.map(tab => tab.id);
+
+								chrome.tabs.remove(tabIds, function () {
+									if (chrome.runtime.lastError) {
+										console.error('Error closing tabs:', chrome.runtime.lastError);
+									}
+
+									// Show tablist after saving if requested
+									if (message.showTabList) {
+										showTabList();
+									}
+
+									// Notify the tablist page to update
+									notifyTabListToUpdate();
+								});
+							} else {
+								// If not closing tabs, still update UI as needed
+								if (message.showTabList) {
+									showTabList();
+								}
+								notifyTabListToUpdate();
 							}
+
+							sendResponse({
+								success: true,
+								count: newTabEntries.length,
+								message: `Saved ${newTabEntries.length} tabs`
+							});
 						});
-					}
-
-					sendResponse({ success: true, count: nonExtensionTabs.length });
-
-					// Show tablist after saving if requested
-					if (message.showTabList) {
-						showTabList();
-					}
+					});
 				} catch (err) {
 					console.error('Error processing tabs:', err);
 					sendResponse({ success: false, error: err.message });
@@ -192,7 +215,7 @@ function saveTab(tab, closeAfterSave = false) {
 		// Create a new tab entry
 		const tabEntry = {
 			id: Date.now() + Math.floor(Math.random() * 1000), // Use timestamp plus random number as unique ID
-			title: tab.title,
+			title: tab.title || 'Untitled Tab',
 			url: tab.url,
 			favicon: tab.favIconUrl,
 			date: new Date().toISOString()
