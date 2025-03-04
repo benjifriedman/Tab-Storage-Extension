@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html data-theme="dark">
+	<head>
+		<title>Saved Tabs</title>
+		<meta charset="UTF-8" />
+		<link rel="stylesheet" href="tablist.css" />
+		<script src="tablist.js" defer></script>
+	</head>
+	<body>
+		<div class="container">
+			<header>
+				<h1>Saved Tabs</h1>
+				<div id="currentStoragePath" class="storage-path">Current storage: Local browser storage</div>
+
+				<div class="controls">
+					<div class="search-container">
+						<input type="text" id="searchInput" placeholder="Search tabs..." />
+					</div>
+
+					<div class="storage-controls">
+						<div class="storage-buttons">
+							<button id="createStorageBtn" class="storage-button">Create New Storage File</button>
+							<button id="loadStorageBtn" class="storage-button">Load Storage File</button>
+							<button id="exportStorageBtn" class="storage-button">Export Storage</button>
+							<input type="file" id="loadStorage" accept=".json" style="display: none" />
+						</div>
+					</div>
+				</div>
+
+				<div class="view-controls">
+					<button id="sortByDate" class="view-button">Sort by Date</button>
+					<button id="sortByTitle" class="view-button">Sort by Name</button>
+					<button id="sortByDomain" class="view-button">Sort by Domain</button>
+				</div>
+			</header>
+
+			<main id="tabsContainer" class="tabs-container">
+				<!-- Tabs will be inserted here -->
+			</main>
+		</div>
+	</body>
+</html>
