@@ -35,22 +35,16 @@ document.addEventListener('DOMContentLoaded', function () {
 						function (response) {
 							if (chrome.runtime.lastError) {
 								console.error('Error:', chrome.runtime.lastError);
-								showStatus('Error: ' + chrome.runtime.lastError.message);
 								return;
 							}
 
-							if (response && response.success) {
-								console.log('Tab saved successfully');
-								showStatus('Tab saved!');
-							} else {
-								console.error('Error saving tab:', response?.error);
-								showStatus('Error saving tab');
-							}
+							// Close the popup
+							window.close();
 						}
 					);
 				} catch (err) {
 					console.error('Error in saveCurrentTab:', err);
-					showStatus('Error: ' + err.message);
+					window.close();
 				}
 			}
 		});
@@ -70,22 +64,16 @@ document.addEventListener('DOMContentLoaded', function () {
 				function (response) {
 					if (chrome.runtime.lastError) {
 						console.error('Error:', chrome.runtime.lastError);
-						showStatus('Error: ' + chrome.runtime.lastError.message);
 						return;
 					}
 
-					if (response && response.success) {
-						console.log(`Saved ${response.count} tabs`);
-						showStatus(`Saved ${response.count} tabs`);
-					} else {
-						console.error('Error saving tabs:', response?.error);
-						showStatus('Error saving tabs');
-					}
+					// Close the popup
+					window.close();
 				}
 			);
 		} catch (err) {
 			console.error('Error in saveAllTabs:', err);
-			showStatus('Error: ' + err.message);
+			window.close();
 		}
 	}
 
@@ -120,7 +108,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		console.log('Adding click listener to view tabs button with ID:', viewTabsButton.id);
 		viewTabsButton.addEventListener('click', function (e) {
 			console.log('View tabs button clicked', e);
-			openTabsList();
+			viewSavedTabs();
 		});
 	} else {
 		console.error('View saved tabs button not found with either ID!');
@@ -134,18 +122,56 @@ document.addEventListener('DOMContentLoaded', function () {
 	console.log('All event listeners attached');
 });
 
-function showStatus(message) {
-	const statusElement = document.getElementById('status');
-	statusElement.textContent = message;
-
-	// Clear the status after 2 seconds
-	setTimeout(function () {
-		statusElement.textContent = '';
-	}, 2000);
-}
-
 // Additional logging to catch any errors
 window.onerror = function (message, source, lineno, colno, error) {
 	console.error('Error in popup.js:', message, 'at', source, lineno, colno, error);
 	return false;
 };
+
+function viewSavedTabs() {
+	console.log('View saved tabs clicked');
+
+	// Get the tablist URL
+	const tablistUrlPattern = chrome.runtime.getURL('tablist.html');
+	console.log('Looking for existing tab with URL pattern:', tablistUrlPattern);
+
+	// Check all windows for an existing tablist tab
+	chrome.tabs.query({}, function (allTabs) {
+		console.log('Found total tabs:', allTabs.length);
+
+		// Find tabs that match our tablist URL
+		const tablistTabs = allTabs.filter(tab => {
+			const isMatch = tab.url === tablistUrlPattern || tab.url.startsWith(tablistUrlPattern);
+			if (isMatch) {
+				console.log('Found matching tab:', tab.id, tab.url);
+			}
+			return isMatch;
+		});
+
+		if (tablistTabs.length > 0) {
+			// Use the first found tab
+			const tabToFocus = tablistTabs[0];
+			console.log('Tablist already open, focusing tab:', tabToFocus.id);
+
+			// Focus the tab and its window
+			chrome.tabs.update(tabToFocus.id, { active: true }, function () {
+				chrome.windows.update(tabToFocus.windowId, { focused: true }, function () {
+					console.log('Tab and window focused');
+					// Close the popup
+					window.close();
+				});
+			});
+		} else {
+			console.log('No existing tablist tab found, creating new one');
+			// Create a new tab and move it to the first position
+			chrome.tabs.create({ url: 'tablist.html' }, function (newTab) {
+				// Move the tab to the first position (index 0)
+				chrome.tabs.move(newTab.id, { index: 0 }, function (movedTab) {
+					console.log('Tablist tab created and moved to first position');
+					// Close the popup
+					window.close();
+				});
+			});
+		}
+	});
+}

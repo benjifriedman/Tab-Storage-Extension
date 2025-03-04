@@ -8,11 +8,33 @@
     "action": {
         "default_popup": "popup.html",
         "default_icon": {
-            "16": "images/icon16.png",
-            "32": "images/icon32.png",
-            "48": "images/icon48.png",
-            "128": "images/icon128.png"
-        }
+            "16": "images/icon16-dark.png",
+            "32": "images/icon32-dark.png",
+            "48": "images/icon48-dark.png",
+            "128": "images/icon128-dark.png"
+        },
+        "theme_icons": [
+            {
+                "light": "images/icon16-light.png",
+                "dark": "images/icon16-dark.png",
+                "size": 16
+            },
+            {
+                "light": "images/icon32-light.png",
+                "dark": "images/icon32-dark.png",
+                "size": 32
+            },
+            {
+                "light": "images/icon48-light.png",
+                "dark": "images/icon48-dark.png",
+                "size": 48
+            },
+            {
+                "light": "images/icon128-light.png",
+                "dark": "images/icon128-dark.png",
+                "size": 128
+            }
+        ]
     },
     "background": {
         "service_worker": "background.js",

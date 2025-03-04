@@ -134,18 +134,75 @@ function createTabElement(tab) {
 	// Create favicon
 	const favicon = document.createElement('img');
 	favicon.className = 'tab-favicon';
-	favicon.src = tab.favicon || 'images/default-favicon.png';
+
+	// Detect special URLs
+	const isSpecialUrl = /^(chrome|edge|brave|about|file|view-source|devtools):/.test(tab.url);
+
+	if (isSpecialUrl) {
+		// Use static icons for special URLs instead of trying to load potentially inaccessible favicons
+		if (tab.url.startsWith('chrome://')) {
+			favicon.src = 'images/chrome-icon.png';
+		} else if (tab.url.startsWith('edge://')) {
+			favicon.src = 'images/edge-icon.png';
+		} else if (tab.url.startsWith('brave://')) {
+			favicon.src = 'images/brave-icon.png';
+		} else if (tab.url.startsWith('about:')) {
+			favicon.src = 'images/about-icon.png';
+		} else if (tab.url.startsWith('file:')) {
+			favicon.src = 'images/file-icon.png';
+		} else {
+			// For other special protocols
+			favicon.src = 'images/default-favicon.png';
+		}
+	} else {
+		// For regular URLs, use the favicon from the tab data
+		if (tab.favicon && tab.favicon.trim() !== '') {
+			favicon.src = tab.favicon;
+		} else {
+			favicon.src = 'images/default-favicon.png';
+		}
+	}
+
+	// Add error handling only once
 	favicon.onerror = function () {
+		// If favicon loading fails, replace with default and remove the error handler
+		// to prevent potential infinite loops
 		this.src = 'images/default-favicon.png';
+		this.onerror = null; // Prevent further error handling
 	};
 
 	// Create title and link
 	const titleLink = document.createElement('a');
 	titleLink.className = 'tab-link';
-	titleLink.href = tab.url;
 	titleLink.textContent = tab.title;
 	titleLink.title = tab.url;
-	titleLink.target = '_blank';
+
+	if (isSpecialUrl) {
+		// For special URLs, use a different approach
+		titleLink.href = '#';
+		titleLink.dataset.specialUrl = tab.url;
+		titleLink.addEventListener('click', function (e) {
+			e.preventDefault();
+
+			// First open the special URL
+			chrome.tabs.create({ url: tab.url }, function () {
+				// Then delete this tab from the list
+				deleteTab(tab.id);
+			});
+		});
+	} else {
+		// Regular URL - normal link handling
+		titleLink.href = tab.url;
+		titleLink.target = '_blank';
+
+		// Add click handler to remove the item after clicking
+		titleLink.addEventListener('click', function (e) {
+			// Give the browser a moment to open the link before deleting
+			setTimeout(function () {
+				deleteTab(tab.id);
+			}, 100);
+		});
+	}
 
 	// Create time element
 	const time = document.createElement('span');
@@ -348,7 +405,7 @@ function createNewStorageFile() {
 					loadTabs(); // Reload the tab display to show empty state
 
 					// Show confirmation to user
-					alert(`Created new empty storage file: ${filename}\nYour previous tabs have been cleared.`);
+					// alert(`Created new empty storage file: ${filename}\nYour previous tabs have been cleared.`);
 				}
 			);
 		}, 100);
@@ -445,11 +502,18 @@ function updateStoragePathDisplay() {
 	});
 }
 
-// Extract domain from URL
+// Extract domain from URL - updated to strip www.
 function extractDomain(url) {
 	try {
 		const urlObj = new URL(url);
-		return urlObj.hostname;
+		let hostname = urlObj.hostname;
+
+		// Remove www. prefix if present
+		if (hostname.startsWith('www.')) {
+			hostname = hostname.substring(4);
+		}
+
+		return hostname;
 	} catch (e) {
 		console.error('Invalid URL:', url, e);
 		return url; // Return the original URL if parsing fails

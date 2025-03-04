@@ -534,3 +534,84 @@ async function exportTabsToFile() {
 		throw error;
 	}
 }
+
+// Fix the saveAllTabs function in background.js
+function saveAllTabs(closeAfterSave = false, showTabList = false) {
+	console.log('Saving all tabs, close after save:', closeAfterSave);
+
+	chrome.tabs.query({}, function (tabs) {
+		console.log('Found', tabs.length, 'tabs to save');
+
+		if (tabs.length === 0) {
+			console.log('No tabs to save');
+			if (showTabList) {
+				showTabList();
+			}
+			return;
+		}
+
+		// Get current tab data from storage
+		chrome.storage.local.get(['tabData'], function (result) {
+			let tabData = result.tabData || [];
+			const originalTabCount = tabData.length;
+
+			// Collect tab IDs for later closing
+			const tabIdsToClose = [];
+
+			// Create entries for all tabs
+			tabs.forEach(tab => {
+				// Skip the extension's own tabs
+				if (tab.url.includes(chrome.runtime.id)) {
+					console.log('Skipping extension tab:', tab.url);
+					return;
+				}
+
+				// Add tab to close list if needed
+				if (closeAfterSave) {
+					tabIdsToClose.push(tab.id);
+				}
+
+				// Create a new tab entry
+				const tabEntry = {
+					id: Date.now() + Math.floor(Math.random() * 1000) + tabData.length, // Ensure unique ID
+					title: tab.title,
+					url: tab.url,
+					favicon: tab.favIconUrl,
+					date: new Date().toISOString()
+				};
+
+				// Add to tab data array
+				tabData.push(tabEntry);
+			});
+
+			// Calculate how many new tabs were added
+			const newTabsAdded = tabData.length - originalTabCount;
+			console.log('Added', newTabsAdded, 'new tabs to storage');
+
+			// Save all tab data
+			chrome.storage.local.set({ tabData: tabData }, function () {
+				console.log('All tabs saved successfully');
+
+				// Close tabs if requested
+				if (closeAfterSave && tabIdsToClose.length > 0) {
+					console.log('Closing', tabIdsToClose.length, 'tabs');
+					chrome.tabs.remove(tabIdsToClose, function () {
+						if (chrome.runtime.lastError) {
+							console.error('Error closing tabs:', chrome.runtime.lastError);
+						}
+
+						// Show tab list if requested
+						if (showTabList) {
+							showTabList();
+						}
+					});
+				} else if (showTabList) {
+					showTabList();
+				}
+
+				// Notify the tablist page to update if it's open
+				notifyTabListToUpdate();
+			});
+		});
+	});
+}
